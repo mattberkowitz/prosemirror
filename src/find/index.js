@@ -52,7 +52,7 @@ CommandSet.find = CommandSet.empty.add({
       let selections = findInNode(pm.doc, findTerm)
       selectNext(pm, selections)
       if(pm.mod.find.options.highlightAll) {
-        selections.forEach(selection => pm.markRange(selection.from, selection.to, {className:'find'}))
+        selections.forEach(selection => pm.markRange(selection.from, selection.to, {className:'find', volitile: true}))
       }
     },
     params: [
@@ -96,7 +96,6 @@ CommandSet.find = CommandSet.empty.add({
         pm.setSelection(selection)
         transform = pm.tr.typeText(replaceWith).apply()
         selections = selections.map(s => s.map(pm.doc, transform.maps[0]))
-        console.log(selections)
       }
     },
     params: [
