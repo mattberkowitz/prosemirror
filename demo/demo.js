@@ -7,6 +7,7 @@ import "../src/inputrules/autoinput"
 import "../src/menu/tooltipmenu"
 import "../src/menu/menubar"
 import "../src/collab"
+import "../src/find"
 
 let te = document.querySelector("#content")
 te.style.display = "none"
@@ -46,7 +47,10 @@ function makeEditor(where, collab) {
     tooltipMenu: {selectedBlockMenu: true},
     menuBar: {float: true},
     doc: doc,
-    collab: collab
+    collab: collab,
+    find: {
+      highlightAll: true
+    }
   })
 }
 
@@ -69,7 +73,7 @@ function choose(collab) {
     createCollab()
     button.textContent = "try single editor"
     document.location.hash = "#collab"
-  } else {    
+  } else {
     pm = makeEditor(".full", false)
     button.textContent = "try collaborative editor"
     document.location.hash = "#single"
