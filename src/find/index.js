@@ -83,7 +83,7 @@ CommandSet.default = CommandSet.default.add({
       pm.mod.find.find(findTerm)
     },
     params: [
-      {label: "Find", type: "text", defaultLabel: "Find...", prefill: defaultFindTerm}
+      {label: "Find", type: "text", prefill: defaultFindTerm}
     ],
     keys: ["Mod-F"]
   },
