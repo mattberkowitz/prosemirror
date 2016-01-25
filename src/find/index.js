@@ -56,6 +56,23 @@ function markFinds(pm, finds) {
   finds.forEach(selection => pm.markRange(selection.from, selection.to, {className: pm.mod.find.findClass, volatile: true}))
 }
 
+function defaultFindTerm(pm) {
+  if(!pm.selection.empty) {
+    return pm.doc.sliceBetween(pm.selection.from, pm.selection.to).textContent
+  }
+  if(pm.mod.find.findResult) {
+    return pm.mod.find.findResult.findTerm
+  }
+  return null
+}
+
+function defaultReplaceWith(pm) {
+  if(pm.mod.find.findResult) {
+    return pm.mod.find.findResult.replaceWith
+  }
+  return null
+}
+
 CommandSet.default = CommandSet.default.add({
   find: {
     label: "Find occurances of a string",
@@ -63,7 +80,7 @@ CommandSet.default = CommandSet.default.add({
       pm.mod.find.find(findTerm)
     },
     params: [
-      {label: "Find", type: "text", defaultLabel: "Find..."}
+      {label: "Find", type: "text", defaultLabel: "Find...", prefill: defaultFindTerm}
     ],
     keys: ["Mod-F"]
   },
@@ -80,8 +97,8 @@ CommandSet.default = CommandSet.default.add({
       pm.mod.find.replace(findTerm, replaceWith)
     },
     params: [
-      {label: "Find", type: "text", defaultLabel: "Find..."},
-      {label: "Replace", type: "text", defaultLabel: "Replace With..."}
+      {label: "Find", type: "text", prefill: defaultFindTerm},
+      {label: "Replace", type: "text", prefill: defaultReplaceWith}
     ],
     keys: ["Shift-Mod-F"]
   },
@@ -91,17 +108,18 @@ CommandSet.default = CommandSet.default.add({
       pm.mod.find.replaceAll(findTerm, replaceWith)
     },
     params: [
-      {label: "Find", type: "text", defaultLabel: "Find..."},
-      {label: "Replace", type: "text", defaultLabel: "Replace With..."}
+      {label: "Find", type: "text", prefill: defaultFindTerm},
+      {label: "Replace", type: "text", prefill: defaultReplaceWith}
     ],
     keys: ["Shift-Alt-Mod-F"]
   }
 })
 
 class FindResult {
-  constructor(pm, findTerm, caseSensitive = true) {
+  constructor(pm, findTerm, replaceWith, caseSensitive = true) {
     this.pm = pm
     this.findTerm = findTerm
+    this.replaceWith = replaceWith
     this.caseSensitive = caseSensitive
     this.autoInputRule = new InputRule(this.autoInputRegExp, null, (pm) => {
       markFinds(pm, [new TextSelection(new Pos(pm.selection.from.path, pm.selection.from.offset - findTerm.length), pm.selection.from)])
@@ -130,7 +148,6 @@ class Find {
     this.options = options
     pm.mod.find = this
 
-
     if(!this.options.noCommands) updateCommands(pm, CommandSet.default)
 
   }
@@ -139,10 +156,18 @@ class Find {
     this.clearFind()
   }
 
-  find(findTerm, node = this.pm.doc) {
-    if(this.findResult) this.clearFind();
+  get findResult() {
+    return this._findResult
+  }
 
+  set findResult(val) {
+    if(this._findResult) this.clearFind()
+    this._findResult = val
+  }
+
+  find(findTerm, node = this.pm.doc) {
     this.findResult = new FindResult(this.pm, findTerm)
+
     let selections = this.findResult.results()
     selectNext(this.pm, selections)
 
@@ -157,38 +182,43 @@ class Find {
   findNext() {
     if(this.findResult) {
       let selections = this.findResult.results()
-      selectNext(pm, selections)
+      return selectNext(pm, selections)
     }
+    return null
   }
 
   clearFind() {
-    this.pm.ranges.ranges.filter(r => r.options.className === this.findClass).forEach(r => this.pm.ranges.removeRange(r))
-    if(this.findResult.autoInputRule) {
+    if(this.options.highlightAll) {
+      this.pm.ranges.ranges.filter(r => r.options.className === this.findClass).forEach(r => this.pm.ranges.removeRange(r))
       removeInputRule(pm, this.findResult.autoInputRule)
     }
-    this.findResult = null
+    this._findResult = null
   }
 
   replace(findTerm, replaceWith) {
-    let findResult = new FindResult(this.pm, findTerm)
+    this.findResult = new FindResult(this.pm, findTerm, replaceWith)
+
     if(this.pm.doc.sliceBetween(this.pm.selection.from, this.pm.selection.to).textContent !== findTerm) {
-      if(!selectNext(pm, findResult.results())) {
+      if(!selectNext(pm, this.findResult.results())) {
         return
       }
     }
     this.pm.tr.typeText(replaceWith).apply()
-    selectNext(pm, findResult.results())
+    return selectNext(pm, this.findResult.results())
   }
 
   replaceAll(findTerm, replaceWith) {
-    let findResult = new FindResult(this.pm, findTerm),
-        selections = findResult.results(),
+    this.findResult = new FindResult(this.pm, findTerm, replaceWith)
+
+    let selections = this.findResult.results(),
         selection, transform;
+
     while(selection = selections.shift()) {
       this.pm.setSelection(selection)
       transform = this.pm.tr.typeText(replaceWith).apply()
       selections = selections.map(s => s.map(this.pm.doc, transform.maps[0]))
     }
+    return selections.length
   }
 
 
