@@ -53,7 +53,8 @@ function selectNext(pm, selections) {
 
 
 function markFinds(pm, finds) {
-  finds.forEach(selection => pm.markRange(selection.from, selection.to, {className: pm.mod.find.findClass, volatile: true}))
+  //I added volatile option to MarkedRange, to destroy a range when it's content changes
+  finds.forEach(selection => pm.markRange(selection.from, selection.to, {className: pm.mod.find.options.findClass, volatile: true}))
 }
 
 function defaultFindTerm(pm) {
@@ -73,6 +74,8 @@ function defaultReplaceWith(pm) {
   return null
 }
 
+
+//Unsure if this is the correct way to add new commands
 CommandSet.default = CommandSet.default.add({
   find: {
     label: "Find occurances of a string",
@@ -90,6 +93,12 @@ CommandSet.default = CommandSet.default.add({
       pm.mod.find.findNext()
     },
     keys: ["Alt-Mod-F"]
+  },
+  clearFind: {
+    label: "Clear highlighted finds",
+    run: function(pm) {
+      pm.mod.find.clearFind()
+    }
   },
   replace: {
     label: "Replaces selected/next occurance of a string",
@@ -139,21 +148,32 @@ class FindResult {
   }
 }
 
-
 class Find {
   constructor(pm, options) {
     this.pm = pm
     this.findResult = null
-    this.findClass = options.findClass || "find"
-    this.options = options
+
+    this.options = Object.create(this.defaultOptions)
+    for(let option in options){
+      this.options[option] = options[option]
+    }
+
     pm.mod.find = this
 
     if(!this.options.noCommands) updateCommands(pm, CommandSet.default)
-
   }
 
   detach() {
     this.clearFind()
+  }
+
+  get defaultOptions() {
+    return {
+      highlightAll: true, //add a MarkedRange to all matchs
+      findNextAfterReplace: true, //execute a find after
+      findClass: "find", //class to add to highlightAll MarkedRanges
+      noCommands: false //set to true to skip adding commands, useful for non-standard UI
+    }
   }
 
   get findResult() {
@@ -161,7 +181,7 @@ class Find {
   }
 
   set findResult(val) {
-    if(this._findResult) this.clearFind()
+    if(this._findResult) this.clearFind() //clear out existing results if there are any
     this._findResult = val
   }
 
@@ -173,6 +193,9 @@ class Find {
 
     if(this.options.highlightAll) {
       markFinds(pm, selections)
+      //Add an input rule to highlight newly typed matches. This works, but I don't love it
+      //It doesn't capture pasted matches, and doesn't catch matches completed from anywhere but
+      //the end (ie I search for "block" then add an "o" to "blck")
       addInputRule(pm, this.findResult.autoInputRule)
     }
 
@@ -189,7 +212,7 @@ class Find {
 
   clearFind() {
     if(this.options.highlightAll) {
-      this.pm.ranges.ranges.filter(r => r.options.className === this.findClass).forEach(r => this.pm.ranges.removeRange(r))
+      this.pm.ranges.ranges.filter(r => r.options.className === this.options.findClass).forEach(r => this.pm.ranges.removeRange(r))
       removeInputRule(pm, this.findResult.autoInputRule)
     }
     this._findResult = null
@@ -200,11 +223,23 @@ class Find {
 
     if(this.pm.doc.sliceBetween(this.pm.selection.from, this.pm.selection.to).textContent !== findTerm) {
       if(!selectNext(pm, this.findResult.results())) {
-        return
+        return false
       }
     }
     this.pm.tr.typeText(replaceWith).apply()
-    return selectNext(pm, this.findResult.results())
+
+    if(this.options.findNextAfterReplace) {
+
+      let otherResults = this.findResult.results()
+      if(this.options.highlightAll && otherResults.length) {
+        markFinds(pm, otherResults)
+        addInputRule(pm, this.findResult.autoInputRule)
+      }
+      selectNext(pm, otherResults)
+
+    }
+
+    return true
   }
 
   replaceAll(findTerm, replaceWith) {
