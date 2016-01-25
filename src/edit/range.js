@@ -110,7 +110,7 @@ export class RangeStore {
       range.from = mapping.map(range.from, range.options.inclusiveLeft ? -1 : 1).pos
       range.to = mapping.map(range.to, range.options.inclusiveRight ? 1 : -1).pos
       let diff = range.from.cmp(range.to)
-      if ((range.options.removeWhenEmpty !== false && diff >= 0) || (range.options.volitile && text !== mapping.docs[1].sliceBetween(range.from, range.to).textContent)) {
+      if ((range.options.removeWhenEmpty !== false && diff >= 0) || (range.options.volatile && text !== mapping.docs[1].sliceBetween(range.from, range.to).textContent)) {
         this.removeRange(range)
         i--
       } else if (diff > 0) {
