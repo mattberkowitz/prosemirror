@@ -226,7 +226,7 @@ class Find {
         return false
       }
     }
-    this.pm.tr.typeText(replaceWith).apply()
+    this.pm.tr.typeText(replaceWith).apply({scrollIntoView: true})
 
     if(this.options.findNextAfterReplace) {
 
@@ -250,7 +250,7 @@ class Find {
 
     while(selection = selections.shift()) {
       this.pm.setSelection(selection)
-      transform = this.pm.tr.typeText(replaceWith).apply()
+      transform = this.pm.tr.typeText(replaceWith).apply({scrollIntoView: true})
       selections = selections.map(s => s.map(this.pm.doc, transform.maps[0]))
     }
     return selections.length
