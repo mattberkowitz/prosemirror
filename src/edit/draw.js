@@ -3,6 +3,7 @@ import {toDOM, nodeToDOM} from "../format"
 import {elt} from "../dom"
 
 import {DIRTY_REDRAW} from "./main"
+import {childContainer} from "./dompos"
 
 // FIXME clean up threading of path and offset, maybe remove from DOM renderer entirely
 
@@ -17,8 +18,13 @@ function options(path, ranges) {
         dom.setAttribute("pm-offset", offset)
       if (node.isTextblock)
         adjustTrailingHacks(dom, node)
+      if (node.type.draggable)
+        dom.setAttribute("draggable", "true")
 
       return dom
+    },
+    onContainer(node) {
+      node.setAttribute("pm-container", true)
     },
     renderInlineFlat(node, dom, offset) {
       ranges.advanceTo(new Pos(path, offset))
@@ -76,8 +82,8 @@ export function draw(pm, doc) {
 }
 
 function adjustTrailingHacks(dom, node) {
-  let needs = node.size == 0 || node.lastChild.type.isBR ? "br"
-      : !node.lastChild.isText && node.lastChild.type.contains == null ? "text" : null
+  let needs = node.size == 0 || node.lastChild.type.isBR || (node.type.isCode && node.lastChild.isText && /\n$/.test(node.lastChild.text))
+      ? "br" : !node.lastChild.isText && node.lastChild.type.contains == null ? "text" : null
   let last = dom.lastChild
   let has = !last || last.nodeType != 1 || !last.hasAttribute("pm-ignore") ? null
       : last.nodeName == "BR" ? "br" : "text"
@@ -123,15 +129,8 @@ export function redraw(pm, dirty, doc, prev) {
         reuseDOM = true
       } else if (pChild && !child.isText && child.sameMarkup(pChild) && dirty.get(pChild) != DIRTY_REDRAW) {
         reuseDOM = true
-        if (pChild.type.contains) {
-          let contentNode = domPos
-          for (;;) {
-            let first = contentNode.firstChild
-            if (!first || first.hasAttribute("pm-ignore") || first.hasAttribute("pm-offset")) break
-            contentNode = first
-          }
-          scan(contentNode, child, pChild)
-        }
+        if (pChild.type.contains)
+          scan(childContainer(domPos), child, pChild)
       } else {
         let rendered = nodeToDOM(child, opts, offset)
         dom.insertBefore(rendered, domPos)

@@ -4,7 +4,8 @@ import sortedInsert from "../util/sortedinsert"
 import {AssertionError} from "../util/error"
 
 import {charCategory, isExtendingChar} from "./char"
-import {findSelectionFrom, verticalMotionLeavesTextblock, setDOMSelectionToPos, NodeSelection} from "./selection"
+import {findSelectionFrom, verticalMotionLeavesTextblock, NodeSelection} from "./selection"
+import {setDOMSelectionToPos} from "./dompos"
 
 // :: Object<CommandSpec>
 // The set of default commands defined by the core library. They are
@@ -408,8 +409,12 @@ baseCommands.splitBlock = {
       if (!from.offset) return false
       return pm.tr.split(from).apply(pm.apply.scroll)
     } else {
-      let type = to.offset == block.size ? pm.schema.defaultTextblockType() : null
-      return pm.tr.delete(from, to).split(from, 1, type).apply(pm.apply.scroll)
+      let deflt = pm.schema.defaultTextblockType()
+      let type = to.offset == block.size ? deflt : null
+      let tr = pm.tr.delete(from, to).split(from, 1, type)
+      if (to.offset < block.size && !from.offset && pm.doc.path(from.path).type != deflt)
+        tr.setNodeType(from.shorten(), deflt)
+      return tr.apply(pm.apply.scroll)
     }
   },
   keys: ["Enter(60)"]

@@ -25,7 +25,7 @@ class SchemaItem {
   // mapping names to either attributes (to add) or null (to remove
   // the attribute by that name).
   static updateAttrs(attrs) {
-    this.prototype.attrs = overlayObj(this.prototype.attrs, attrs)
+    Object.defineProperty(this.prototype, "attrs", {value: overlayObj(this.prototype.attrs, attrs)})
   }
 
   // For node types where all attrs have a default value (or which don't
@@ -158,6 +158,15 @@ export class NodeType extends SchemaItem {
   // Controls whether nodes of this type can be selected (as a user
   // node selection).
   get selectable() { return true }
+
+  // :: bool
+  // Determines whether nodes of this type can be dragged. Enabling it
+  // causes ProseMirror to set a `draggable` attribute on its DOM
+  // representation, and to put its HTML serialization into the drag
+  // event's [data
+  // transfer](https://developer.mozilla.org/en-US/docs/Web/API/DataTransfer)
+  // when dragged.
+  get draggable() { return false }
 
   // :: bool
   // Controls whether this node type is locked.
@@ -586,8 +595,13 @@ export class Schema {
   // Deserialize a mark from its JSON representation. This method is
   // bound.
   markFromJSON(json) {
-    if (typeof json == "string") return this.mark(json)
-    return this.mark(json._, json)
+    let type = this.marks[json._]
+    let attrs = null
+    for (let prop in json) if (prop != "_") {
+      if (!attrs) attrs = Object.create(null)
+      attrs[prop] = json[prop]
+    }
+    return attrs ? type.create(attrs) : type.instance
   }
 
   // :: (string) → NodeType
