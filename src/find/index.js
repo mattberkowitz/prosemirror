@@ -23,10 +23,11 @@ function findInNode(node, findResult, path = []) {
 
   //Not sure this is the right way to do this, but it works. node.isText() drills down to
   //individual text fragments, which wouldn't catch something like blo*ck* (markdown) searching for "block"
-  if(node.type instanceof Textblock) {
+  if(node.isTextblock) {
     let index = 0, foundAt
     while((foundAt = node.textContent.slice(index).search(findResult.findRegExp)) > -1) {
-      ret.push(new TextSelection(new Pos(path, index + foundAt), new Pos(path, index + foundAt + findResult.findTerm.length)))
+      let sel = new TextSelection(new Pos(path, index + foundAt), new Pos(path, index + foundAt + findResult.findTerm.length))
+      ret.push(sel)
       index = index + foundAt + findResult.findTerm.length
     }
   } else {
@@ -39,7 +40,7 @@ function findInNode(node, findResult, path = []) {
 //Finds the selection that comes after the end of the current selection
 function selectNext(pm, selections) {
   if(selections.length === 0) {
-    return false //bail if theres no selections
+    return null
   }
   for(let i=0;i<selections.length;i++) {
     if(pm.selection.to.cmp(selections[i].from) <= 0) {
@@ -54,7 +55,39 @@ function selectNext(pm, selections) {
 
 function markFinds(pm, finds) {
   //I added volatile option to MarkedRange, to destroy a range when it's content changes
-  finds.forEach(selection => pm.markRange(selection.from, selection.to, {className: pm.mod.find.options.findClass, volatile: true}))
+  finds.forEach(selection => {
+    pm.markRange(selection.from, selection.to, {className: pm.mod.find.options.findClass})
+  })
+}
+
+function removeFinds(pm, node = pm.doc) {
+  pm.ranges.ranges.filter(r => r.options.className === pm.mod.find.options.findClass && pm.doc.pathNodes(r.from.path).indexOf(node) > -1).forEach(r => pm.ranges.removeRange(r))
+}
+
+function rangeFromTransform(tr) {
+  let from, to
+  for (let i = 0; i < tr.steps.length; i++) {
+    let step = tr.steps[i], map = tr.maps[i]
+    let stepFrom = map.map(step.from || step.pos, -1).pos
+    let stepTo = map.map(step.to || step.pos, 1).pos
+    from = from ? map.map(from, -1).pos.min(stepFrom) : stepFrom
+    to = to ? map.map(to, 1).pos.max(stepTo) : stepTo
+  }
+  return {from, to}
+}
+
+function processNodes (pm, from, to, findResult) {
+  if(!findResult) return
+  let processed = []
+  function processNode (node, path) {
+    if(node.isTextblock && processed.indexOf(node) === -1) {
+      removeFinds(pm, node)
+      let matches = findInNode(node, findResult, [].concat(path))
+      markFinds(pm, matches)
+      processed.push(node)
+    }
+  }
+  pm.doc.nodesBetween(from, to, (node, path, parent) => processNode(node, path))
 }
 
 function defaultFindTerm(pm) {
@@ -160,6 +193,13 @@ class Find {
 
     pm.mod.find = this
 
+    pm.on("transform", function(transform) {
+      if(pm.mod.find.options.highlightAll && pm.mod.find.findResult) {
+        let {from, to} = rangeFromTransform(transform)
+        processNodes(pm, from, to, pm.mod.find.findResult)
+      }
+    })
+
     if(!this.options.noCommands) updateCommands(pm, CommandSet.default)
   }
 
@@ -193,10 +233,6 @@ class Find {
 
     if(this.options.highlightAll) {
       markFinds(pm, selections)
-      //Add an input rule to highlight newly typed matches. This works, but I don't love it
-      //It doesn't capture pasted matches, and doesn't catch matches completed from anywhere but
-      //the end (ie I search for "block" then add an "o" to "blck")
-      addInputRule(pm, this.findResult.autoInputRule)
     }
 
     return selections
@@ -212,8 +248,7 @@ class Find {
 
   clearFind() {
     if(this.options.highlightAll) {
-      this.pm.ranges.ranges.filter(r => r.options.className === this.options.findClass).forEach(r => this.pm.ranges.removeRange(r))
-      removeInputRule(pm, this.findResult.autoInputRule)
+      removeFinds(this.pm)
     }
     this._findResult = null
   }

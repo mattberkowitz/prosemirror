@@ -40,6 +40,8 @@ class DummyServer {
   }
 }
 
+window.Pos = Pos
+
 function makeEditor(where, collab) {
   return new ProseMirror({
     place: document.querySelector(where),
